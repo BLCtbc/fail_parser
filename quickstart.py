@@ -84,6 +84,8 @@ def message_handler(service, messages):
 
 	message_ids = [x['id'] for x in messages]
 	for id in message_ids:
+
+		POTENTIAL = []
 		ip = ''
 		country = ''
 		encoded_msg = service.users().messages().get(userId='me', format='raw', id=id).execute()
@@ -97,58 +99,76 @@ def message_handler(service, messages):
 		msg_str = msg_bytes.decode()
 		email_msg = email.message_from_string(msg_str)
 		date = email_msg.get('Date', '')
-		print('date: ', date)
+		# print('date: ', date)
 
 		body = email_msg.get_payload()
 		body_list = body.split("\r")
 
-		found_country = False
 		country_list = []
 		address_list = []
 		phone_code = ""
+		POTENTIAL_MATCHES = []
 
-		for li in body_list:
-			phone_match = phone_regex.search(li)
+		for _li in body_list:
+			li = _li.lower()
+
+			LI = li.upper()
+
+			if POTENTIAL:
+
+				for x in POTENTIAL:
+					s = "(?:address|country)(?:[\:\s\,\w]*?)({})".format(x.lower())
+					regex = re.compile(r"{}".format(s))
+					match = regex.search(li)
+					if match:
+						POTENTIAL_MATCHES.append(COUNTRY_CODES[match.group(1)])
+						#country_list.append(COUNTRY_CODES[match.group(1)])
+
+
+			phone_match = phone_regex.search(LI)
 			if phone_match:
 				phone_code = phone_match.group(1)
 				print("phone_code: ", phone_code)
 
 			if not ip:
-				ip_match = ip_regex.search(li)
+				ip_match = ip_regex.search(LI)
 				if ip_match:
 					ip = ip_match.group(1)
-					print('ip: ', ip)
+					# print('ip: ', ip)
 
-			if 'country' in li.lower():
-				country_match = country_regex.search(li.lower())
+			if 'country' in li:
+				country_match = country_regex.search(li)
 				if country_match:
-					country_list.append(country_match.group(2))
-					# found_country = True
-					print('country: ', country_match.group(2))
+					cmatch = country_match.group(2).upper()
+					country_list.append(cmatch)
+					POTENTIAL.append(ABBREVIATIONS[cmatch].lower())
+					# print('country: ', country_match.group(2))
 				else:
-					print('No re match for country in: {}'.format(li.lower()))
+					print('No re match for country in: {}'.format(LI))
 
-			if 'address' in li.lower():
-				address_list.append(li.lower())
+			if 'address' in li:
+				print('\n ** ', li)
+				address_list.append(li)
 
-		if len(address_list) < 0:
-			print('last address element: ', address_list[-1])
-			match = country_regex.search(address_list[-1].lower())
+		if len(address_list) > 0:
+			# print('last address element: ', address_list[-1])
+			match = country_regex.search(address_list[-1])
 			if match:
-				country_list.append(match.group(2))
+				country_list.append(match.group(2).upper())
 			else:
-				print('No re match for country in: {}'.format(li.lower()))
+				print('No re match for country in: {}'.format(LI))
 
 		weighted_vals = []
 		for x in country_list:
-			if x.upper() not in COUNTRY_WEIGHTS.keys():
-				COUNTRY_WEIGHTS[x.upper()] = 1
-			weighted_vals.append(COUNTRY_WEIGHTS[x.upper()])
+			if x not in COUNTRY_WEIGHTS.keys():
+				COUNTRY_WEIGHTS[x] = 1
 
-		weighted = [x.upper() for x in country_list if COUNTRY_WEIGHTS[x.upper()] == max(weighted_vals)]
+			weighted_vals.append(COUNTRY_WEIGHTS[x])
+
+		weighted = [x for x in country_list if COUNTRY_WEIGHTS[x] == max(weighted_vals)]
 
 		if len(weighted) > 1:
-			print('weighted: ', weighted)
+			# print('weighted: ', weighted)
 			country = random.choice(weighted)
 		elif weighted:
 			country = weighted[0]
@@ -176,6 +196,19 @@ def message_handler(service, messages):
 			ALL_BANS[ip][id] = {}
 			ALL_BANS[ip][id]['country'] = country.upper()
 			ALL_BANS[ip][id]['date'] = date
+			ALL_BANS[ip][id]['choices'] = country_list
+			ALL_BANS[ip][id]['stats'] = {}
+			if POTENTIAL:
+				ALL_BANS[ip][id]['POTENTIAL'] = POTENTIAL
+			if POTENTIAL_MATCHES:
+				ALL_BANS[ip][id]['POTENTIAL_MATCHES'] = POTENTIAL_MATCHES
+			if len(set(country_list)) > 1:
+				ALL_BANS[ip][id]['stats']['ratio'] = {}
+				for x in set(country_list):
+					ALL_BANS[ip][id]['stats']['ratio'][x] = country_list.count(x)
+
+
+
 
 def get_item_list(path):
 	all_items = ''
@@ -184,7 +217,7 @@ def get_item_list(path):
 		all_items = json.load(f) if os.path.getsize(path)>0 else {}
 
 	if len(all_items) > 0:
-		sorted_dict = dict(sorted(all_items.items()))
+		sorted_dict = dict(all_items.items())
 		return sorted_dict
 	else:
 		return all_items
@@ -192,6 +225,8 @@ def get_item_list(path):
 ALL_BANS = get_item_list(os.path.abspath('bans.js'))
 COUNTRY_WEIGHTS = get_item_list(os.path.abspath('country_weights.json'))
 PHONE_CODES = get_item_list(os.path.abspath('phone_codes.json'))
+ABBREVIATIONS = get_item_list(os.path.abspath('abbreviations.json'))
+COUNTRY_CODES = {k.lower():v for k,v in get_item_list(os.path.abspath('country_codes.json')).items()}
 
 if __name__ == '__main__':
 	main()
