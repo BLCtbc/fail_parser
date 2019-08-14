@@ -93,7 +93,7 @@ def message_handler(service, messages):
 		ip_match = ip_regex.search(snippet)
 		if ip_match:
 			ip = ip_match.group(1)
-			print('Found IP {} in snippet'.format(ip))
+			# print('Found IP {} in snippet'.format(ip))
 
 		msg_bytes = base64.urlsafe_b64decode(encoded_msg['raw'].encode('ASCII'))
 		msg_str = msg_bytes.decode()
@@ -128,7 +128,7 @@ def message_handler(service, messages):
 			phone_match = phone_regex.search(LI)
 			if phone_match:
 				phone_code = phone_match.group(1)
-				print("phone_code: ", phone_code)
+				# print("phone_code: ", phone_code)
 
 			if not ip:
 				ip_match = ip_regex.search(LI)
@@ -147,7 +147,7 @@ def message_handler(service, messages):
 					print('No re match for country in: {}'.format(LI))
 
 			if 'address' in li:
-				print('\n ** ', li)
+				# print('\n ** ', li)
 				address_list.append(li)
 
 		if len(address_list) > 0:
